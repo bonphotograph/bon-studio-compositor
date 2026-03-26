@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bon Studio — Content Compositor</title>
+<link href="https://fonts.googleapis.com/css2?family=Italiana&family=Jost:wght@300;400;500&family=DM+Sans:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --cream: #F5F3F0;
+    --ink: #111111;
+    --walnut: #614E3A;
+    --deep-brown: #452900;
+    --mist: #9A9490;
+    --stone: #C8C5BE;
+    --white: #FFFFFF;
+  }
+
+  body {
+    background: #1A1714;
+    color: var(--cream);
+    font-family: 'Jost', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    padding: 22px 40px 18px;
+    border-bottom: 1px solid rgba(245,243,240,0.08);
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+  header .logo { font-family: 'Italiana', serif; font-size: 22px; color: var(--cream); letter-spacing: 0.02em; }
+  header .subtitle { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--mist); font-weight: 300; }
+  header .version { margin-left: auto; font-size: 9px; letter-spacing: 0.15em; color: rgba(154,148,144,0.5); }
+
+  .app { display: grid; grid-template-columns: 360px 1fr; flex: 1; min-height: 0; overflow: hidden; }
+
+  .sidebar {
+    border-right: 1px solid rgba(245,243,240,0.08);
+    padding: 24px 24px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .section-label {
+    font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--mist); font-weight: 500; margin-bottom: 10px;
+  }
+
+  /* ── Upload zone ── */
+  .upload-zone {
+    display: block;
+    border: 1px dashed rgba(245,243,240,0.2); border-radius: 6px;
+    padding: 22px 16px; text-align: center; cursor: pointer;
+    transition: border-color 0.2s, background 0.2s; position: relative;
+    user-select: none;
+  }
+  .upload-zone:hover, .upload-zone.drag-over { border-color: rgba(245,243,240,0.5); background: rgba(245,243,240,0.03); }
+  .upload-zone .upload-icon { font-size: 24px; margin-bottom: 8px; opacity: 0.35; }
+  .upload-zone p { font-size: 11px; color: var(--mist); font-weight: 300; }
+  .upload-zone .file-name { font-size: 11px; color: var(--cream); margin-top: 5px; word-break: break-all; }
+
+  /* ── Format ── */
+  .format-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; }
+  .format-btn {
+    background: rgba(245,243,240,0.05); border: 1px solid rgba(245,243,240,0.1);
+    border-radius: 4px; padding: 9px 4px; text-align: center; cursor: pointer;
+    transition: all 0.15s; color: var(--mist); font-family: 'Jost', sans-serif;
+    font-size: 9px; letter-spacing: 0.06em; font-weight: 400;
+  }
+  .format-btn.active { background: rgba(97,78,58,0.3); border-color: var(--walnut); color: var(--cream); }
+  .format-btn .ratio { font-size: 13px; display: block; margin-bottom: 3px; font-family: 'Italiana', serif; }
+
+  /* ── Layout grid — 3×2 ── */
+  .layout-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; }
+  .layout-btn {
+    background: rgba(245,243,240,0.04); border: 1px solid rgba(245,243,240,0.1);
+    border-radius: 4px; padding: 9px 5px; cursor: pointer; text-align: center;
+    transition: all 0.15s; font-family: 'Jost', sans-serif; font-size: 9px;
+    color: var(--mist); letter-spacing: 0.04em;
+  }
+  .layout-btn:hover { border-color: rgba(245,243,240,0.3); }
+  .layout-btn.active { background: rgba(97,78,58,0.25); border-color: var(--walnut); color: var(--cream); }
+  .layout-btn .thumb {
+    width: 100%; aspect-ratio: 1; border: 1px solid rgba(245,243,240,0.12);
+    border-radius: 2px; margin-bottom: 6px; position: relative;
+    overflow: hidden; background: rgba(245,243,240,0.04);
+  }
+  .layout-btn .tl { position: absolute; background: rgba(245,243,240,0.35); border-radius: 1px; }
+
+  /* ── Text fields ── */
+  .field-group { display: flex; flex-direction: column; gap: 9px; }
+  .field-row { display: flex; flex-direction: column; gap: 4px; }
+  .field-row label { font-size: 8px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--mist); font-weight: 500; }
+  .field-row input, .field-row textarea, .field-row select {
+    background: rgba(245,243,240,0.05); border: 1px solid rgba(245,243,240,0.12);
+    border-radius: 4px; color: var(--cream); font-family: 'Jost', sans-serif;
+    font-size: 13px; font-weight: 300; padding: 8px 11px; outline: none;
+    transition: border-color 0.15s; resize: none; width: 100%;
+  }
+  .field-row input:focus, .field-row textarea:focus, .field-row select:focus { border-color: rgba(245,243,240,0.35); }
+  .field-row select option { background: #2A2420; }
+
+  /* ── AI button ── */
+  .ai-btn {
+    background: rgba(245,243,240,0.05); border: 1px solid rgba(245,243,240,0.15);
+    border-radius: 4px; color: var(--mist); font-family: 'Jost', sans-serif;
+    font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 9px 14px; cursor: pointer; transition: all 0.15s;
+    display: flex; align-items: center; gap: 7px; width: 100%; justify-content: center;
+  }
+  .ai-btn:hover { border-color: rgba(245,243,240,0.35); color: var(--cream); }
+  .ai-btn.loading { opacity: 0.6; pointer-events: none; }
+  .ai-btn .spinner { width: 12px; height: 12px; border: 1.5px solid rgba(245,243,240,0.3); border-top-color: var(--cream); border-radius: 50%; animation: spin 0.8s linear infinite; display: none; }
+  .ai-btn.loading .spinner { display: block; }
+  .ai-btn.loading .btn-text { display: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Style chips ── */
+  .style-row { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+  .style-chip {
+    background: rgba(245,243,240,0.04); border: 1px solid rgba(245,243,240,0.1);
+    border-radius: 20px; padding: 7px 8px; font-size: 9px; letter-spacing: 0.05em;
+    cursor: pointer; text-align: center; transition: all 0.15s; color: var(--mist); font-family: 'Jost', sans-serif;
+  }
+  .style-chip.active { background: rgba(97,78,58,0.3); border-color: var(--walnut); color: var(--cream); }
+
+  /* ── Overlay ── */
+  .overlay-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .overlay-swatch { width: 26px; height: 26px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; transition: border-color 0.15s; }
+  .overlay-swatch.active { border-color: var(--cream); }
+  .opacity-slider { flex: 1; min-width: 60px; accent-color: var(--walnut); }
+
+  /* ── Watermark section ── */
+  .watermark-row { display: flex; gap: 7px; align-items: center; margin-bottom: 10px; }
+  .wm-upload-btn {
+    flex: 1; background: rgba(245,243,240,0.05); border: 1px dashed rgba(245,243,240,0.2);
+    border-radius: 4px; padding: 8px 10px; font-size: 10px; color: var(--mist);
+    font-family: 'Jost', sans-serif; cursor: pointer; text-align: center;
+    transition: all 0.15s; letter-spacing: 0.06em; position: relative;
+  }
+  .wm-upload-btn:hover { border-color: rgba(245,243,240,0.4); color: var(--cream); }
+  .wm-upload-btn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .wm-preview { width: 48px; height: 32px; border: 1px solid rgba(245,243,240,0.12); border-radius: 3px; background: rgba(245,243,240,0.04); display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; }
+  .wm-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .wm-clear-btn { background: none; border: none; color: var(--mist); cursor: pointer; font-size: 14px; padding: 4px; transition: color 0.15s; flex-shrink: 0; }
+  .wm-clear-btn:hover { color: var(--cream); }
+
+  /* Watermark position — 3 buttons: L / C / R */
+  .wm-pos-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; }
+  .wm-pos-btn {
+    background: rgba(245,243,240,0.04); border: 1px solid rgba(245,243,240,0.1);
+    border-radius: 4px; padding: 6px; font-size: 9px; color: var(--mist);
+    font-family: 'Jost', sans-serif; cursor: pointer; text-align: center;
+    transition: all 0.15s; letter-spacing: 0.04em;
+  }
+  .wm-pos-btn.active { background: rgba(97,78,58,0.25); border-color: var(--walnut); color: var(--cream); }
+
+  /* Watermark size slider */
+  .wm-size-row { display: flex; align-items: center; gap: 10px; }
+  .wm-size-row label { font-size: 8px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--mist); white-space: nowrap; }
+  .wm-size-row input[type=range] { flex: 1; accent-color: var(--walnut); }
+  .wm-size-val { font-size: 10px; color: var(--mist); min-width: 28px; text-align: right; }
+
+  /* ── Export ── */
+  .export-btn {
+    background: var(--walnut); border: none; border-radius: 4px; color: var(--cream);
+    font-family: 'Jost', sans-serif; font-size: 11px; letter-spacing: 0.14em;
+    text-transform: uppercase; font-weight: 500; padding: 13px; cursor: pointer;
+    width: 100%; transition: background 0.15s;
+  }
+  .export-btn:hover { background: #7A6248; }
+  .export-status { font-size: 11px; color: var(--mist); letter-spacing: 0.06em; text-align: center; min-height: 16px; }
+
+  /* ── Carousel ── */
+  .slide-actions { display: flex; gap: 7px; }
+  .slide-action-btn {
+    background: rgba(245,243,240,0.05); border: 1px solid rgba(245,243,240,0.12);
+    border-radius: 4px; color: var(--mist); font-family: 'Jost', sans-serif;
+    font-size: 10px; padding: 5px 11px; cursor: pointer; transition: all 0.15s; letter-spacing: 0.06em;
+  }
+  .slide-action-btn:hover { border-color: rgba(245,243,240,0.3); color: var(--cream); }
+
+  /* ── Canvas area ── */
+  .canvas-area {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 32px; gap: 16px; background: #0F0D0B; overflow: auto;
+  }
+  .canvas-wrapper { position: relative; box-shadow: 0 0 60px rgba(0,0,0,0.7); }
+
+  /* Live preview */
+  #preview {
+    width: 500px; height: 500px; position: relative; overflow: hidden;
+    background: var(--cream);
+  }
+  #preview.portrait { height: 625px; }
+  #preview.story    { height: 889px; }
+
+  #preview-bg   { position: absolute; inset: 0; background-size: cover; background-position: center; background-color: var(--cream); }
+  #preview-overlay { position: absolute; inset: 0; }
+
+  /* Text block — positioned by JS classes */
+  #preview-content {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    padding: 10%;
+  }
+  /* Row 1: top */
+  #preview-content.layout-top-left    { align-items: flex-start;  justify-content: flex-start; }
+  #preview-content.layout-top-center  { align-items: center;       justify-content: flex-start; text-align: center; }
+  #preview-content.layout-top-right   { align-items: flex-end;     justify-content: flex-start; text-align: right; }
+  /* Row 2: middle */
+  #preview-content.layout-center-left  { align-items: flex-start;  justify-content: center; }
+  #preview-content.layout-center       { align-items: center;       justify-content: center; text-align: center; }
+  #preview-content.layout-center-right { align-items: flex-end;     justify-content: center; text-align: right; }
+
+  .preview-eyebrow {
+    font-family: 'Jost', sans-serif; font-weight: 300; font-size: 11px;
+    letter-spacing: 0.22em; text-transform: uppercase; margin-bottom: 4px;
+    color: var(--cream); text-shadow: 0 1px 10px rgba(0,0,0,0.4);
+    line-height: 1.3;
+  }
+  .preview-headline {
+    font-family: 'Italiana', serif; font-weight: 400; font-size: 68px;
+    color: var(--cream); line-height: 1.0; text-shadow: 0 2px 18px rgba(0,0,0,0.25);
+  }
+  .preview-subtext {
+    font-family: 'Jost', sans-serif; font-weight: 300; font-style: italic;
+    font-size: 15px; letter-spacing: 0.04em; color: var(--cream);
+    text-shadow: 0 1px 10px rgba(0,0,0,0.35); margin-top: 8px; line-height: 1.4;
+  }
+  .preview-caption {
+    font-family: 'DM Sans', sans-serif; font-weight: 300; font-size: 10px;
+    letter-spacing: 0.08em; color: rgba(245,243,240,0.6);
+    position: absolute; bottom: 7%;
+  }
+  /* caption left/right depends on layout */
+  #preview-content.layout-top-left    .preview-caption,
+  #preview-content.layout-center-left .preview-caption  { left: 10%; }
+  #preview-content.layout-top-right   .preview-caption,
+  #preview-content.layout-center-right .preview-caption { right: 10%; }
+  #preview-content.layout-top-center  .preview-caption,
+  #preview-content.layout-center      .preview-caption  { left: 10%; }
+
+  /* Watermark preview inside canvas */
+  #preview-wm {
+    position: absolute; bottom: 3.5%; max-height: 6%; object-fit: contain;
+    display: none; opacity: 0.75; pointer-events: none;
+  }
+  #preview-wm.wm-left   { left: 5%; }
+  #preview-wm.wm-center { left: 50%; transform: translateX(-50%); }
+  #preview-wm.wm-right  { right: 5%; }
+
+  /* Dark-on-light mode */
+  #preview.mode-dark-on-light .preview-eyebrow,
+  #preview.mode-dark-on-light .preview-headline,
+  #preview.mode-dark-on-light .preview-subtext { color: var(--deep-brown); text-shadow: none; }
+  #preview.mode-dark-on-light .preview-caption { color: rgba(69,41,0,0.5); }
+  #preview.mode-dark-on-light #preview-wm { opacity: 0.6; }
+
+  /* Carousel nav */
+  .carousel-nav { display: flex; align-items: center; gap: 10px; }
+  .slide-dots { display: flex; gap: 5px; }
+  .slide-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(245,243,240,0.2); cursor: pointer; transition: background 0.15s; border: none; }
+  .slide-dot.active { background: var(--cream); }
+  .nav-arrow {
+    background: rgba(245,243,240,0.08); border: 1px solid rgba(245,243,240,0.15);
+    border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center;
+    justify-content: center; cursor: pointer; color: var(--cream); font-size: 14px; transition: background 0.15s;
+  }
+  .nav-arrow:hover { background: rgba(245,243,240,0.15); }
+  .nav-arrow:disabled { opacity: 0.3; pointer-events: none; }
+  .slide-info { font-size: 10px; color: var(--mist); letter-spacing: 0.06em; }
+
+  .divider { height: 1px; background: rgba(245,243,240,0.07); margin: 2px 0; }
+
+  .sidebar::-webkit-scrollbar { width: 3px; }
+  .sidebar::-webkit-scrollbar-track { background: transparent; }
+  .sidebar::-webkit-scrollbar-thumb { background: rgba(245,243,240,0.1); border-radius: 2px; }
+
+  canvas#exportCanvas { display: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo">Bon Studio</span>
+  <span class="subtitle">Content Compositor</span>
+  <span class="version">v2.0</span>
+</header>
+
+<div class="app">
+
+<!-- ══════════════ SIDEBAR ══════════════ -->
+<aside class="sidebar">
+
+  <!-- PHOTO -->
+  <div>
+    <div class="section-label">Photo</div>
+    <label class="upload-zone" id="uploadZone" for="photoInput">
+      <input type="file" id="photoInput" accept="image/*" style="display:none;">
+      <div class="upload-icon">↑</div>
+      <p>Drop photo here or click anywhere to upload</p>
+      <div class="file-name" id="fileName"></div>
+    </label>
+  </div>
+
+  <!-- FORMAT -->
+  <div>
+    <div class="section-label">Format</div>
+    <div class="format-row">
+      <button class="format-btn active" onclick="setFormat('square',this)">
+        <span class="ratio">1:1</span>Feed Square
+      </button>
+      <button class="format-btn" onclick="setFormat('portrait',this)">
+        <span class="ratio">4:5</span>Feed Portrait
+      </button>
+      <button class="format-btn" onclick="setFormat('story',this)">
+        <span class="ratio">9:16</span>Story / Reel
+      </button>
+    </div>
+  </div>
+
+  <!-- TEXT POSITION — 3×2 grid -->
+  <div>
+    <div class="section-label">Text Position</div>
+    <div class="layout-grid">
+
+      <button class="layout-btn active" onclick="setLayout('top-left',this)">
+        <div class="thumb">
+          <div class="tl" style="left:14%;top:18%;width:52%;height:3px;"></div>
+          <div class="tl" style="left:14%;top:28%;width:38%;height:2px;"></div>
+        </div>Top Left
+      </button>
+
+      <button class="layout-btn" onclick="setLayout('top-center',this)">
+        <div class="thumb">
+          <div class="tl" style="left:24%;top:18%;width:52%;height:3px;"></div>
+          <div class="tl" style="left:30%;top:28%;width:40%;height:2px;"></div>
+        </div>Top Center
+      </button>
+
+      <button class="layout-btn" onclick="setLayout('top-right',this)">
+        <div class="thumb">
+          <div class="tl" style="right:14%;top:18%;width:52%;height:3px;"></div>
+          <div class="tl" style="right:14%;top:28%;width:38%;height:2px;"></div>
+        </div>Top Right
+      </button>
+
+      <button class="layout-btn" onclick="setLayout('center-left',this)">
+        <div class="thumb">
+          <div class="tl" style="left:14%;top:40%;width:52%;height:3px;"></div>
+          <div class="tl" style="left:14%;top:50%;width:38%;height:2px;"></div>
+        </div>Mid Left
+      </button>
+
+      <button class="layout-btn" onclick="setLayout('center',this)">
+        <div class="thumb">
+          <div class="tl" style="left:24%;top:40%;width:52%;height:3px;"></div>
+          <div class="tl" style="left:30%;top:50%;width:40%;height:2px;"></div>
+        </div>Center
+      </button>
+
+      <button class="layout-btn" onclick="setLayout('center-right',this)">
+        <div class="thumb">
+          <div class="tl" style="right:14%;top:40%;width:52%;height:3px;"></div>
+          <div class="tl" style="right:14%;top:50%;width:38%;height:2px;"></div>
+        </div>Mid Right
+      </button>
+
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- TEXT CONTENT -->
+  <div>
+    <div class="section-label">Text Content</div>
+    <div class="field-group">
+      <div class="field-row">
+        <label>Eyebrow (small uppercase)</label>
+        <input type="text" id="eyebrow" placeholder="e.g. Pre-Wedding · Croatia" oninput="updatePreview()">
+      </div>
+      <div class="field-row">
+        <label>Headline (Italiana, large)</label>
+        <input type="text" id="headline" placeholder="e.g. Every Story" oninput="updatePreview()">
+      </div>
+      <div class="field-row">
+        <label>Subtext (italic, optional)</label>
+        <input type="text" id="subtext" placeholder="e.g. deserves to be captured →" oninput="updatePreview()">
+      </div>
+      <div class="field-row">
+        <label>Location caption</label>
+        <input type="text" id="caption" placeholder="e.g. Faroe Islands · 2025" oninput="updatePreview()">
+      </div>
+    </div>
+  </div>
+
+  <!-- AI GENERATE -->
+  <div>
+    <div class="section-label">AI Copy Generation</div>
+    <div class="field-row" style="margin-bottom:9px;">
+      <label>Brief / topic</label>
+      <textarea id="brief" rows="2" placeholder="e.g. Pre-wedding shoot at golden hour, cliffside in Croatia"></textarea>
+    </div>
+    <div class="field-row" style="margin-bottom:9px;">
+      <label>Post type</label>
+      <select id="postType">
+        <option value="prewedding">Pre-wedding</option>
+        <option value="portrait">Portrait / Solo</option>
+        <option value="family">Family</option>
+        <option value="travel">Travel shoot</option>
+        <option value="commercial">Commercial / Brand</option>
+        <option value="hongkong">Hong Kong shoot</option>
+      </select>
+    </div>
+    <button class="ai-btn" id="aiBtn" onclick="generateCopy()">
+      <div class="spinner"></div>
+      <span class="btn-text">✦ Generate copy with AI</span>
+    </button>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- TEXT COLOR MODE -->
+  <div>
+    <div class="section-label">Text Color Mode</div>
+    <div class="style-row">
+      <button class="style-chip active" onclick="setMode('light-on-dark',this)">White on Photo</button>
+      <button class="style-chip" onclick="setMode('dark-on-light',this)">Brown on Cream</button>
+    </div>
+  </div>
+
+  <!-- OVERLAY -->
+  <div>
+    <div class="section-label">Photo Overlay</div>
+    <div class="overlay-row">
+      <div class="overlay-swatch active" style="background:transparent;border:1px dashed rgba(245,243,240,0.3);" title="None" onclick="setOverlay('none',this)"></div>
+      <div class="overlay-swatch" style="background:rgba(0,0,0,0.4);" title="Dark" onclick="setOverlay('dark',this)"></div>
+      <div class="overlay-swatch" style="background:rgba(69,41,0,0.35);" title="Warm" onclick="setOverlay('warm',this)"></div>
+      <div class="overlay-swatch" style="background:rgba(245,243,240,0.25);" title="Light" onclick="setOverlay('light',this)"></div>
+      <label style="font-size:9px;color:var(--mist);margin-left:2px;">Opacity</label>
+      <input type="range" class="opacity-slider" id="overlayOpacity" min="0" max="0.7" step="0.05" value="0.35" oninput="updatePreview()">
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ══ WATERMARK ══ -->
+  <div>
+    <div class="section-label">Watermark</div>
+
+    <div class="watermark-row">
+      <div class="wm-upload-btn" id="wmUploadBtn">
+        <input type="file" id="wmInput" accept="image/png,image/svg+xml,image/webp">
+        <span id="wmBtnLabel">↑ Upload PNG</span>
+      </div>
+      <div class="wm-preview" id="wmPreviewBox">
+        <span style="font-size:9px;color:var(--mist);">—</span>
+      </div>
+      <button class="wm-clear-btn" title="Remove watermark" onclick="clearWatermark()">✕</button>
+    </div>
+
+    <div class="section-label" style="margin-bottom:8px;">Position</div>
+    <div class="wm-pos-row" style="margin-bottom:10px;">
+      <button class="wm-pos-btn" onclick="setWmPos('left',this)">Bottom Left</button>
+      <button class="wm-pos-btn active" onclick="setWmPos('center',this)">Bottom Center</button>
+      <button class="wm-pos-btn" onclick="setWmPos('right',this)">Bottom Right</button>
+    </div>
+
+    <div class="wm-size-row">
+      <label>Size</label>
+      <input type="range" id="wmSize" min="5" max="35" value="18" step="1" oninput="updateWmSize()">
+      <span class="wm-size-val" id="wmSizeVal">18%</span>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- CAROUSEL -->
+  <div>
+    <div class="section-label" style="display:flex;justify-content:space-between;align-items:center;">
+      <span>Carousel Slides</span>
+      <div class="slide-actions">
+        <button class="slide-action-btn" onclick="addSlide()">+ Add</button>
+        <button class="slide-action-btn" onclick="removeSlide()">− Remove</button>
+      </div>
+    </div>
+    <div id="slideList" style="display:flex;flex-direction:column;gap:4px;margin-top:8px;"></div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- EXPORT -->
+  <div>
+    <div class="section-label">Export</div>
+    <button class="export-btn" onclick="exportCurrentSlide()">Export current slide — PNG</button>
+    <div style="height:7px;"></div>
+    <button class="export-btn" style="background:var(--deep-brown);" onclick="exportAll()">Export all slides — PNG</button>
+    <div class="export-status" id="exportStatus" style="margin-top:8px;"></div>
+  </div>
+
+</aside>
+
+<!-- ══════════════ CANVAS ══════════════ -->
+<main class="canvas-area">
+  <div class="canvas-wrapper">
+    <div id="preview">
+      <div id="preview-bg"></div>
+      <div id="preview-overlay"></div>
+      <div id="preview-content" class="layout-top-left">
+        <span class="preview-eyebrow"  id="pEyebrow"  style="display:none;"></span>
+        <span class="preview-headline" id="pHeadline">Every Story</span>
+        <span class="preview-subtext"  id="pSubtext"  style="display:none;"></span>
+        <span class="preview-caption"  id="pCaption"  style="display:none;"></span>
+      </div>
+      <img id="preview-wm" class="wm-center" alt="">
+    </div>
+  </div>
+
+  <div class="carousel-nav">
+    <button class="nav-arrow" id="prevBtn" onclick="prevSlide()" disabled>‹</button>
+    <div class="slide-dots" id="slideDots"></div>
+    <button class="nav-arrow" id="nextBtn" onclick="nextSlide()">›</button>
+  </div>
+  <div class="slide-info" id="slideInfo">Slide 1 of 1</div>
+  <canvas id="exportCanvas"></canvas>
+</main>
+
+</div><!-- .app -->
+
+<script>
+// ═══════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════
+const LS_KEY = 'bonstudio_compositor_v2';
+
+let currentFormat  = 'square';
+let currentLayout  = 'top-left';
+let currentMode    = 'light-on-dark';
+let currentOverlay = 'none';
+let currentSlideIndex = 0;
+let wmDataUrl      = null;   // persisted watermark
+let wmPos          = 'center';
+let wmSize         = 18;     // % of canvas width
+
+const FORMAT_DIMS = {
+  square:   { w: 1080, h: 1080 },
+  portrait: { w: 1080, h: 1350 },
+  story:    { w: 1080, h: 1920 }
+};
+
+const FORMAT_PREVIEW_H = { square: '500px', portrait: '625px', story: '889px' };
+
+let slides = [{
+  photo: null, eyebrow: '', headline: 'Every Story', subtext: '', caption: '',
+  layout: 'top-left', overlay: 'none', mode: 'light-on-dark'
+}];
+
+// ═══════════════════════════════════════════════════
+//  LOCALSTORAGE — SAVE / LOAD
+// ═══════════════════════════════════════════════════
+function saveState() {
+  try {
+    const state = {
+      currentFormat, currentLayout, currentMode, currentOverlay,
+      currentSlideIndex, wmPos, wmSize,
+      wmDataUrl,   // stored as base64 — may be null
+      slides: slides.map(s => ({ ...s, photo: s.photo || null })),
+      overlayOpacity: document.getElementById('overlayOpacity').value
+    };
+    localStorage.setItem(LS_KEY, JSON.stringify(state));
+  } catch(e) {
+    // localStorage quota — silently ignore (large photos can hit limit)
+    console.warn('localStorage save failed (quota?):', e.message);
+  }
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return false;
+    const state = JSON.parse(raw);
+
+    currentFormat        = state.currentFormat  || 'square';
+    currentLayout        = state.currentLayout  || 'top-left';
+    currentMode          = state.currentMode    || 'light-on-dark';
+    currentOverlay       = state.currentOverlay || 'none';
+    currentSlideIndex    = state.currentSlideIndex || 0;
+    wmPos                = state.wmPos   || 'center';
+    wmSize               = state.wmSize  || 18;
+    wmDataUrl            = state.wmDataUrl || null;
+    slides               = state.slides  || slides;
+
+    if (state.overlayOpacity !== undefined)
+      document.getElementById('overlayOpacity').value = state.overlayOpacity;
+
+    return true;
+  } catch(e) {
+    return false;
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  FORMAT
+// ═══════════════════════════════════════════════════
+function setFormat(fmt, btn) {
+  currentFormat = fmt;
+  document.querySelectorAll('.format-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const preview = document.getElementById('preview');
+  preview.style.height = FORMAT_PREVIEW_H[fmt];
+  preview.className = fmt === 'portrait' ? 'portrait' : fmt === 'story' ? 'story' : '';
+  if (currentMode === 'dark-on-light') preview.classList.add('mode-dark-on-light');
+  updatePreview();
+  saveState();
+}
+
+// ═══════════════════════════════════════════════════
+//  LAYOUT
+// ═══════════════════════════════════════════════════
+function setLayout(layout, btn) {
+  currentLayout = layout;
+  slides[currentSlideIndex].layout = layout;
+  document.querySelectorAll('.layout-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  updatePreview();
+  saveState();
+}
+
+// ═══════════════════════════════════════════════════
+//  MODE
+// ═══════════════════════════════════════════════════
+function setMode(mode, btn) {
+  currentMode = mode;
+  slides[currentSlideIndex].mode = mode;
+  document.querySelectorAll('.style-chip').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  updatePreview();
+  saveState();
+}
+
+// ═══════════════════════════════════════════════════
+//  OVERLAY
+// ═══════════════════════════════════════════════════
+function setOverlay(overlay, el) {
+  currentOverlay = overlay;
+  slides[currentSlideIndex].overlay = overlay;
+  document.querySelectorAll('.overlay-swatch').forEach(s => s.classList.remove('active'));
+  el.classList.add('active');
+  updatePreview();
+  saveState();
+}
+
+// ═══════════════════════════════════════════════════
+//  PHOTO UPLOAD
+// ═══════════════════════════════════════════════════
+document.getElementById('photoInput').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  readImage(file, dataUrl => {
+    slides[currentSlideIndex].photo = dataUrl;
+    document.getElementById('fileName').textContent = file.name;
+    updatePreview();
+    saveState();
+  });
+});
+
+const uz = document.getElementById('uploadZone');
+uz.addEventListener('dragover', e => { e.preventDefault(); uz.classList.add('drag-over'); });
+uz.addEventListener('dragleave', () => uz.classList.remove('drag-over'));
+uz.addEventListener('drop', e => {
+  e.preventDefault(); uz.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (!file || !file.type.startsWith('image/')) return;
+  readImage(file, dataUrl => {
+    slides[currentSlideIndex].photo = dataUrl;
+    document.getElementById('fileName').textContent = file.name;
+    updatePreview();
+    saveState();
+  });
+});
+
+function readImage(file, cb) {
+  const reader = new FileReader();
+  reader.onload = ev => cb(ev.target.result);
+  reader.readAsDataURL(file);
+}
+
+// ═══════════════════════════════════════════════════
+//  WATERMARK
+// ═══════════════════════════════════════════════════
+document.getElementById('wmInput').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  readImage(file, dataUrl => {
+    wmDataUrl = dataUrl;
+    document.getElementById('wmBtnLabel').textContent = file.name.slice(0, 18) + (file.name.length > 18 ? '…' : '');
+    renderWmPreview();
+    updatePreview();
+    saveState();
+  });
+});
+
+function renderWmPreview() {
+  const box = document.getElementById('wmPreviewBox');
+  if (wmDataUrl) {
+    box.innerHTML = `<img src="${wmDataUrl}" style="max-width:100%;max-height:100%;object-fit:contain;">`;
+  } else {
+    box.innerHTML = `<span style="font-size:9px;color:var(--mist);">—</span>`;
+  }
+}
+
+function clearWatermark() {
+  wmDataUrl = null;
+  document.getElementById('wmBtnLabel').textContent = '↑ Upload PNG';
+  document.getElementById('wmInput').value = '';
+  renderWmPreview();
+  updatePreview();
+  saveState();
+}
+
+function setWmPos(pos, btn) {
+  wmPos = pos;
+  document.querySelectorAll('.wm-pos-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  updatePreview();
+  saveState();
+}
+
+function updateWmSize() {
+  wmSize = parseInt(document.getElementById('wmSize').value);
+  document.getElementById('wmSizeVal').textContent = wmSize + '%';
+  updatePreview();
+  saveState();
+}
+
+// ═══════════════════════════════════════════════════
+//  LIVE PREVIEW
+// ═══════════════════════════════════════════════════
+function updatePreview() {
+  const slide = currentSlide();
+
+  // Sync inputs → slide state
+  slide.eyebrow  = document.getElementById('eyebrow').value;
+  slide.headline = document.getElementById('headline').value;
+  slide.subtext  = document.getElementById('subtext').value;
+  slide.caption  = document.getElementById('caption').value;
+  slide.layout   = currentLayout;
+  slide.mode     = currentMode;
+  slide.overlay  = currentOverlay;
+
+  // BG photo
+  const bg = document.getElementById('preview-bg');
+  if (slide.photo) {
+    bg.style.backgroundImage = `url('${slide.photo}')`;
+  } else {
+    bg.style.backgroundImage = 'none';
+    bg.style.backgroundColor = currentMode === 'dark-on-light' ? '#F5F3F0' : '#3A3530';
+  }
+
+  // Overlay tint
+  const ov = document.getElementById('preview-overlay');
+  const opacity = parseFloat(document.getElementById('overlayOpacity').value);
+  if      (slide.overlay === 'dark')  ov.style.background = `rgba(0,0,0,${opacity})`;
+  else if (slide.overlay === 'warm')  ov.style.background = `rgba(69,41,0,${opacity})`;
+  else if (slide.overlay === 'light') ov.style.background = `rgba(245,243,240,${opacity})`;
+  else                                ov.style.background = 'transparent';
+
+  // Layout class
+  const content = document.getElementById('preview-content');
+  content.className = `layout-${slide.layout}`;
+
+  // Mode
+  const preview = document.getElementById('preview');
+  const baseClass = currentFormat === 'portrait' ? 'portrait' : currentFormat === 'story' ? 'story' : '';
+  preview.className = baseClass + (slide.mode === 'dark-on-light' ? ' mode-dark-on-light' : '');
+
+  // ── Text elements ──
+  const setEl = (id, text, show) => {
+    const el = document.getElementById(id);
+    el.textContent = text;
+    el.style.display = (show && text) ? '' : 'none';
+  };
+  setEl('pEyebrow',  slide.eyebrow,  true);
+  setEl('pHeadline', slide.headline, true);
+  setEl('pSubtext',  slide.subtext,  true);
+  setEl('pCaption',  slide.caption,  true);
+
+  // ── Watermark in preview ──
+  const wmImg = document.getElementById('preview-wm');
+  if (wmDataUrl) {
+    wmImg.src = wmDataUrl;
+    wmImg.style.display = 'block';
+    // size: wmSize% of preview width (500px)
+    const previewW = 500;
+    wmImg.style.maxWidth  = (previewW * wmSize / 100) + 'px';
+    wmImg.style.maxHeight = (previewW * wmSize / 100 * 0.4) + 'px'; // aspect cap
+    wmImg.className = `wm-${wmPos}`;
+  } else {
+    wmImg.style.display = 'none';
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  CAROUSEL
+// ═══════════════════════════════════════════════════
+function currentSlide() { return slides[currentSlideIndex]; }
+
+function renderSlideList() {
+  const list = document.getElementById('slideList');
+  list.innerHTML = slides.map((s, i) => `
+    <div onclick="goToSlide(${i})" style="
+      display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:3px;cursor:pointer;
+      background:${i===currentSlideIndex?'rgba(97,78,58,0.2)':'rgba(245,243,240,0.03)'};
+      border:1px solid ${i===currentSlideIndex?'rgba(97,78,58,0.5)':'transparent'};
+    ">
+      <span style="font-size:9px;color:${i===currentSlideIndex?'#C8C5BE':'var(--mist)'};letter-spacing:0.12em;font-weight:500;min-width:16px;">0${i+1}</span>
+      <span style="font-size:12px;color:${i===currentSlideIndex?'var(--cream)':'var(--mist)'};font-family:Italiana,serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">${s.headline || '—'}</span>
+      ${s.photo ? '<span style="font-size:9px;color:#614E3A;">●</span>' : ''}
+    </div>
+  `).join('');
+
+  const dots = document.getElementById('slideDots');
+  dots.innerHTML = slides.map((_,i) => `<button class="slide-dot ${i===currentSlideIndex?'active':''}" onclick="goToSlide(${i})"></button>`).join('');
+
+  document.getElementById('prevBtn').disabled = currentSlideIndex === 0;
+  document.getElementById('nextBtn').disabled = currentSlideIndex === slides.length - 1;
+  document.getElementById('slideInfo').textContent = `Slide ${currentSlideIndex+1} of ${slides.length}`;
+}
+
+function loadSlide(index) {
+  const s = slides[index];
+  document.getElementById('eyebrow').value  = s.eyebrow  || '';
+  document.getElementById('headline').value = s.headline || '';
+  document.getElementById('subtext').value  = s.subtext  || '';
+  document.getElementById('caption').value  = s.caption  || '';
+
+  currentLayout  = s.layout  || 'top-left';
+  currentMode    = s.mode    || 'light-on-dark';
+  currentOverlay = s.overlay || 'none';
+
+  // Sync buttons
+  document.querySelectorAll('.layout-btn').forEach(b => {
+    const lyt = b.getAttribute('onclick').match(/'([^']+)'/)?.[1];
+    b.classList.toggle('active', lyt === currentLayout);
+  });
+  document.querySelectorAll('.style-chip').forEach(b => {
+    const m = b.getAttribute('onclick').match(/'([^']+)'/)?.[1];
+    b.classList.toggle('active', m === currentMode);
+  });
+  document.querySelectorAll('.overlay-swatch').forEach(b => {
+    const ov = b.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
+    b.classList.toggle('active', ov === currentOverlay);
+  });
+
+  document.getElementById('fileName').textContent = s.photo ? '(photo loaded)' : '';
+  updatePreview();
+  renderSlideList();
+}
+
+function goToSlide(i)  { currentSlideIndex = i; loadSlide(i); }
+function prevSlide()   { if (currentSlideIndex > 0) goToSlide(currentSlideIndex - 1); }
+function nextSlide()   { if (currentSlideIndex < slides.length - 1) goToSlide(currentSlideIndex + 1); }
+
+function addSlide() {
+  const cur = slides[currentSlideIndex];
+  slides.push({
+    photo:   null,           // new slide gets no photo — user uploads fresh
+    eyebrow: cur.eyebrow,    // pre-fill all text from current slide
+    headline: cur.headline,
+    subtext:  cur.subtext,
+    caption:  cur.caption,
+    layout:   cur.layout,
+    overlay:  cur.overlay,
+    mode:     cur.mode
+  });
+  goToSlide(slides.length - 1);
+  saveState();
+}
+
+function removeSlide() {
+  if (slides.length <= 1) return;
+  slides.splice(currentSlideIndex, 1);
+  if (currentSlideIndex >= slides.length) currentSlideIndex = slides.length - 1;
+  loadSlide(currentSlideIndex);
+  saveState();
+}
+
+// ═══════════════════════════════════════════════════
+//  AI COPY
+// ═══════════════════════════════════════════════════
+async function generateCopy() {
+  const brief    = document.getElementById('brief').value.trim();
+  const postType = document.getElementById('postType').value;
+  const btn      = document.getElementById('aiBtn');
+  if (!brief) { setStatus('Please enter a brief first.'); return; }
+
+  btn.classList.add('loading');
+  setStatus('Generating copy…');
+
+  const sys = `You are the copywriter for Bon Studio HK, a Hong Kong photography studio.
+Brand voice: quiet, poetic, unhurried. Short evocative phrases. No exclamation marks. No clichés.
+The headline font is Italiana. Text overlays on real photographs.
+Return ONLY valid JSON — no markdown, no explanation:
+{"eyebrow":"max 5 words uppercase, service or location","headline":"1–3 words, elegant Italiana display text","subtext":"4–8 words italic phrase, may end with →","caption":"Location · Year"}`;
+
+  try {
+    const res  = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514', max_tokens: 300,
+        system: sys,
+        messages: [{ role: 'user', content: `Post type: ${postType}. Brief: ${brief}` }]
+      })
+    });
+    const data = await res.json();
+    const copy = JSON.parse(data.content?.[0]?.text.replace(/```json|```/g,'').trim() || '{}');
+    document.getElementById('eyebrow').value  = copy.eyebrow  || '';
+    document.getElementById('headline').value = copy.headline || '';
+    document.getElementById('subtext').value  = copy.subtext  || '';
+    document.getElementById('caption').value  = copy.caption  || '';
+    updatePreview();
+    setStatus('Copy generated ✦', 3000);
+  } catch(e) {
+    setStatus('Generation failed — check your internet connection.');
+    console.error(e);
+  } finally {
+    btn.classList.remove('loading');
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  EXPORT — CANVAS RENDERER  (FIX #1: eyebrow properly above headline)
+// ═══════════════════════════════════════════════════
+async function renderSlideToCanvas(slideIndex) {
+  const slide      = slides[slideIndex];
+  const { w, h }   = FORMAT_DIMS[currentFormat];
+  const canvas     = document.getElementById('exportCanvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+
+  // 1. Photo background
+  if (slide.photo) {
+    await new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => {
+        const iw = img.naturalWidth, ih = img.naturalHeight;
+        const scale = Math.max(w/iw, h/ih);
+        const dw = iw*scale, dh = ih*scale;
+        ctx.drawImage(img, (w-dw)/2, (h-dh)/2, dw, dh);
+        resolve();
+      };
+      img.src = slide.photo;
+    });
+  } else {
+    ctx.fillStyle = slide.mode === 'dark-on-light' ? '#F5F3F0' : '#3A3530';
+    ctx.fillRect(0,0,w,h);
+  }
+
+  // 2. Overlay
+  const opacity = parseFloat(document.getElementById('overlayOpacity').value);
+  if      (slide.overlay === 'dark')  ctx.fillStyle = `rgba(0,0,0,${opacity})`;
+  else if (slide.overlay === 'warm')  ctx.fillStyle = `rgba(69,41,0,${opacity})`;
+  else if (slide.overlay === 'light') ctx.fillStyle = `rgba(245,243,240,${opacity})`;
+  if (slide.overlay !== 'none') ctx.fillRect(0,0,w,h);
+
+  await document.fonts.ready;
+
+  // 3. Colour tokens
+  const isLight  = slide.mode !== 'dark-on-light';
+  const tText    = isLight ? 'rgba(245,243,240,0.95)' : 'rgba(69,41,0,0.9)';
+  const tSub     = isLight ? 'rgba(245,243,240,0.85)' : 'rgba(97,78,58,0.8)';
+  const tCaption = isLight ? 'rgba(245,243,240,0.55)' : 'rgba(69,41,0,0.45)';
+  const tBrand   = isLight ? 'rgba(245,243,240,0.4)'  : 'rgba(69,41,0,0.3)';
+
+  const pad = w * 0.1;
+
+  // 4. Font sizes (proportional to canvas width)
+  const szEyebrow  = Math.round(w * 0.022);   // ~24px at 1080
+  const szHeadline = Math.round(w * 0.11);    // ~119px at 1080
+  const szSubtext  = Math.round(w * 0.028);   // ~30px at 1080
+  const szCaption  = Math.round(w * 0.018);
+  const szBrand    = Math.round(w * 0.018);
+
+  // 5. Visual spacing model — equal whitespace on both sides of headline
+  // fillText draws from BASELINE. Visual top = baseline - capHeight, bottom = baseline + descender.
+  // For equal visual gap G between elements:
+  //   next_baseline = current_baseline + current_descender + G + next_capHeight
+  const capE  = szEyebrow  * 0.72;   // cap height of eyebrow
+  const descE = szEyebrow  * 0.20;   // descender of eyebrow
+  const capH  = szHeadline * 0.75;   // cap height of headline (Italiana is tall)
+  const descH = szHeadline * 0.15;   // descender of headline
+  const capS  = szSubtext  * 0.72;   // cap height of subtext
+  const descS = szSubtext  * 0.20;
+  const gap   = Math.round(w * 0.020); // consistent visual whitespace between every pair
+
+  // baseline-to-baseline advances:
+  const advEtoH = descE + gap + capH;   // eyebrow → headline
+  const advHtoS = descH + gap + capS;   // headline → subtext
+
+  // 6. Total visual block height (top of eyebrow → bottom of last element)
+  let blockH = 0;
+  if (slide.eyebrow)  blockH += capE;
+  if (slide.eyebrow && slide.headline)  blockH += advEtoH;
+  else if (slide.headline)              blockH += capH;
+  if (slide.headline && slide.subtext)  blockH += advHtoS;
+  else if (slide.subtext && !slide.headline) blockH += capS;
+  blockH += descS; // trailing descender
+
+  // 7. Layout → startX, startY (= baseline of first element), textAlign
+  const layout = slide.layout || 'top-left';
+  let startX, startY, align;
+
+  // For center: vertically centre the block. startY = top of block + capE (= baseline of eyebrow)
+  const centerStartY = (h - blockH) / 2 + capE;
+  const topStartY    = h * 0.14 + capE;
+
+  if      (layout === 'top-left')     { startX = pad;     startY = topStartY;    align = 'left';   }
+  else if (layout === 'top-center')   { startX = w/2;     startY = topStartY;    align = 'center'; }
+  else if (layout === 'top-right')    { startX = w - pad; startY = topStartY;    align = 'right';  }
+  else if (layout === 'center-left')  { startX = pad;     startY = centerStartY; align = 'left';   }
+  else if (layout === 'center')       { startX = w/2;     startY = centerStartY; align = 'center'; }
+  else if (layout === 'center-right') { startX = w - pad; startY = centerStartY; align = 'right';  }
+  else                                { startX = pad;     startY = topStartY;    align = 'left';   }
+
+  ctx.textAlign = align;
+
+  // Shadow helper
+  const shadow = () => {
+    if (isLight) { ctx.shadowColor = 'rgba(0,0,0,0.22)'; ctx.shadowBlur = 18; }
+    else         { ctx.shadowColor = 'transparent';       ctx.shadowBlur = 0;  }
+  };
+
+  // 8. Draw text — y is the BASELINE of each element
+  //    Advance: y += descender_of_current + gap + capHeight_of_next
+  let y = startY;
+
+  if (slide.eyebrow) {
+    ctx.font      = `300 ${szEyebrow}px 'Jost', sans-serif`;
+    ctx.fillStyle = tText;
+    ctx.letterSpacing = `${Math.round(w * 0.003)}px`;
+    shadow();
+    ctx.fillText(slide.eyebrow.toUpperCase(), startX, y);
+    ctx.letterSpacing = '0px';
+    if (slide.headline) y += advEtoH;
+  }
+
+  if (slide.headline) {
+    ctx.font      = `400 ${szHeadline}px 'Italiana', serif`;
+    ctx.fillStyle = tText;
+    shadow();
+    ctx.fillText(slide.headline, startX, y);
+    if (slide.subtext) y += advHtoS;
+  }
+
+  if (slide.subtext) {
+    ctx.font      = `300 italic ${szSubtext}px 'Jost', sans-serif`;
+    ctx.fillStyle = tSub;
+    shadow();
+    ctx.fillText(slide.subtext, startX, y);
+  }
+
+  // 9. Location caption — bottom area, left or right based on alignment
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+  if (slide.caption) {
+    ctx.font      = `300 ${szCaption}px 'DM Sans', sans-serif`;
+    ctx.fillStyle = tCaption;
+    const capX = align === 'right' ? w - pad : pad;
+    ctx.textAlign = align === 'right' ? 'right' : 'left';
+    ctx.fillText(slide.caption, capX, h - h*0.07);
+  }
+
+  // 10. Watermark
+  if (wmDataUrl) {
+    await new Promise(resolve => {
+      const wmImg = new Image();
+      wmImg.onload = () => {
+        const wmW  = w * wmSize / 100;
+        const wmH  = wmImg.naturalHeight * (wmW / wmImg.naturalWidth);
+        const wmY  = h - wmH - h * 0.03;
+        let wmX;
+        if      (wmPos === 'left')   wmX = w * 0.05;
+        else if (wmPos === 'right')  wmX = w - wmW - w * 0.05;
+        else                         wmX = (w - wmW) / 2;
+
+        ctx.globalAlpha = 0.75;
+        ctx.drawImage(wmImg, wmX, wmY, wmW, wmH);
+        ctx.globalAlpha = 1.0;
+        resolve();
+      };
+      wmImg.src = wmDataUrl;
+    });
+  }
+
+  return canvas.toDataURL('image/png');
+}
+
+// ═══════════════════════════════════════════════════
+//  EXPORT ACTIONS
+// ═══════════════════════════════════════════════════
+async function exportCurrentSlide() {
+  setStatus('Rendering…');
+  try {
+    const dataUrl = await renderSlideToCanvas(currentSlideIndex);
+    dl(dataUrl, `bonstudio-slide-${currentSlideIndex+1}-${currentFormat}.png`);
+    setStatus(`Exported slide ${currentSlideIndex+1} ✦`, 3000);
+  } catch(e) { console.error(e); setStatus('Export failed. See console.'); }
+}
+
+async function exportAll() {
+  for (let i = 0; i < slides.length; i++) {
+    setStatus(`Exporting ${i+1} of ${slides.length}…`);
+    const dataUrl = await renderSlideToCanvas(i);
+    dl(dataUrl, `bonstudio-slide-${i+1}-${currentFormat}.png`);
+    await new Promise(r => setTimeout(r, 350));
+  }
+  setStatus(`All ${slides.length} slides exported ✦`, 4000);
+}
+
+function dl(dataUrl, filename) {
+  const a = document.createElement('a');
+  a.href = dataUrl; a.download = filename; a.click();
+}
+
+function setStatus(msg, clearAfter) {
+  const el = document.getElementById('exportStatus');
+  el.textContent = msg;
+  if (clearAfter) setTimeout(() => { if (el.textContent === msg) el.textContent = ''; }, clearAfter);
+}
+
+// ═══════════════════════════════════════════════════
+//  INIT — restore from localStorage or default
+// ═══════════════════════════════════════════════════
+function init() {
+  const restored = loadState();
+
+  // Restore watermark preview if any
+  if (wmDataUrl) {
+    renderWmPreview();
+    document.getElementById('wmBtnLabel').textContent = 'Watermark loaded';
+  }
+
+  // Restore watermark position button
+  document.querySelectorAll('.wm-pos-btn').forEach(b => {
+    const p = b.getAttribute('onclick').match(/'([^']+)'/)?.[1];
+    b.classList.toggle('active', p === wmPos);
+  });
+
+  // Restore watermark size
+  document.getElementById('wmSize').value = wmSize;
+  document.getElementById('wmSizeVal').textContent = wmSize + '%';
+
+  // Restore format button
+  document.querySelectorAll('.format-btn').forEach(b => {
+    const f = b.getAttribute('onclick').match(/'([^']+)'/)?.[1];
+    b.classList.toggle('active', f === currentFormat);
+  });
+  const preview = document.getElementById('preview');
+  preview.style.height = FORMAT_PREVIEW_H[currentFormat];
+  if (currentFormat === 'portrait') preview.classList.add('portrait');
+  if (currentFormat === 'story')    preview.classList.add('story');
+
+  // Clamp slideIndex
+  if (currentSlideIndex >= slides.length) currentSlideIndex = 0;
+
+  loadSlide(currentSlideIndex);
+  renderSlideList();
+}
+
+init();
+</script>
+</body>
+</html>
