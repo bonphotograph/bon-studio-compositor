@@ -286,6 +286,33 @@
   .sidebar::-webkit-scrollbar-track { background: transparent; }
   .sidebar::-webkit-scrollbar-thumb { background: rgba(245,243,240,0.1); border-radius: 2px; }
 
+  /* ── Crop overlay (shown over preview when photo loaded) ── */
+  #crop-overlay {
+    position: absolute; inset: 0; cursor: ns-resize;
+    display: none; z-index: 10;
+    background: transparent;
+  }
+  #crop-overlay.active { display: block; }
+  #crop-hint {
+    position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+    font-family: 'Jost', sans-serif; font-size: 9px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: rgba(245,243,240,0.55);
+    background: rgba(0,0,0,0.45); padding: 4px 10px; border-radius: 10px;
+    pointer-events: none; white-space: nowrap;
+  }
+  /* visual drag bar */
+  #crop-dragbar {
+    position: absolute; left: 0; right: 0; height: 2px;
+    background: rgba(245,243,240,0.6); pointer-events: none;
+    box-shadow: 0 0 6px rgba(255,255,255,0.4);
+  }
+
+  /* ── Text scale row ── */
+  .scale-row { display: flex; align-items: center; gap: 10px; }
+  .scale-row label { font-size: 8px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--mist); white-space: nowrap; }
+  .scale-row input[type=range] { flex: 1; accent-color: var(--walnut); }
+  .scale-val { font-size: 10px; color: var(--mist); min-width: 32px; text-align: right; }
+
   canvas#exportCanvas { display: none; }
 </style>
 </head>
@@ -294,7 +321,7 @@
 <header>
   <span class="logo">Bon Studio</span>
   <span class="subtitle">Content Compositor</span>
-  <span class="version">v2.0</span>
+  <span class="version">v3.0</span>
 </header>
 
 <div class="app">
@@ -454,6 +481,23 @@
 
   <div class="divider"></div>
 
+  <!-- TEXT SCALE -->
+  <div>
+    <div class="section-label">Text Scale</div>
+    <div class="scale-row">
+      <label>Size</label>
+      <input type="range" id="textScale" min="60" max="140" value="100" step="5" oninput="updateTextScale()">
+      <span class="scale-val" id="textScaleVal">100%</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-top:6px;">
+      <span style="font-size:8px;color:var(--mist);letter-spacing:0.06em;">Minimal</span>
+      <button onclick="resetTextScale()" style="font-size:8px;color:var(--mist);background:none;border:none;cursor:pointer;letter-spacing:0.06em;text-transform:uppercase;">Reset</button>
+      <span style="font-size:8px;color:var(--mist);letter-spacing:0.06em;">Bold</span>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
   <!-- ══ WATERMARK ══ -->
   <div>
     <div class="section-label">Watermark</div>
@@ -523,6 +567,11 @@
         <span class="preview-caption"  id="pCaption"  style="display:none;"></span>
       </div>
       <img id="preview-wm" class="wm-center" alt="">
+      <!-- Crop overlay — drag to reposition photo -->
+      <div id="crop-overlay">
+        <div id="crop-dragbar"></div>
+        <div id="crop-hint">↕ Drag to reposition</div>
+      </div>
     </div>
   </div>
 
@@ -551,6 +600,7 @@ let currentSlideIndex = 0;
 let wmDataUrl      = null;   // persisted watermark
 let wmPos          = 'center';
 let wmSize         = 18;     // % of canvas width
+let textScale      = 100;    // % — scales all text proportionally
 
 const FORMAT_DIMS = {
   square:   { w: 1080, h: 1080 },
@@ -562,7 +612,8 @@ const FORMAT_PREVIEW_H = { square: '500px', portrait: '625px', story: '889px' };
 
 let slides = [{
   photo: null, eyebrow: '', headline: 'Every Story', subtext: '', caption: '',
-  layout: 'top-left', overlay: 'none', mode: 'light-on-dark'
+  layout: 'top-left', overlay: 'none', mode: 'light-on-dark',
+  cropOffsetY: 50   // 0=top, 50=center, 100=bottom (% of overflow)
 }];
 
 // ═══════════════════════════════════════════════════
@@ -572,7 +623,7 @@ function saveState() {
   try {
     const state = {
       currentFormat, currentLayout, currentMode, currentOverlay,
-      currentSlideIndex, wmPos, wmSize,
+      currentSlideIndex, wmPos, wmSize, textScale,
       wmDataUrl,   // stored as base64 — may be null
       slides: slides.map(s => ({ ...s, photo: s.photo || null })),
       overlayOpacity: document.getElementById('overlayOpacity').value
@@ -598,7 +649,10 @@ function loadState() {
     wmPos                = state.wmPos   || 'center';
     wmSize               = state.wmSize  || 18;
     wmDataUrl            = state.wmDataUrl || null;
+    textScale            = state.textScale || 100;
     slides               = state.slides  || slides;
+    // ensure all slides have cropOffsetY
+    slides = slides.map(s => ({ cropOffsetY: 50, ...s }));
 
     if (state.overlayOpacity !== undefined)
       document.getElementById('overlayOpacity').value = state.overlayOpacity;
@@ -668,6 +722,7 @@ document.getElementById('photoInput').addEventListener('change', function(e) {
   if (!file) return;
   readImage(file, dataUrl => {
     slides[currentSlideIndex].photo = dataUrl;
+    slides[currentSlideIndex].cropOffsetY = 50; // reset to center on new photo
     document.getElementById('fileName').textContent = file.name;
     updatePreview();
     saveState();
@@ -683,6 +738,7 @@ uz.addEventListener('drop', e => {
   if (!file || !file.type.startsWith('image/')) return;
   readImage(file, dataUrl => {
     slides[currentSlideIndex].photo = dataUrl;
+    slides[currentSlideIndex].cropOffsetY = 50;
     document.getElementById('fileName').textContent = file.name;
     updatePreview();
     saveState();
@@ -762,9 +818,19 @@ function updatePreview() {
   const bg = document.getElementById('preview-bg');
   if (slide.photo) {
     bg.style.backgroundImage = `url('${slide.photo}')`;
+    // Apply crop position: background-position-y maps 0%=top 100%=bottom
+    bg.style.backgroundPositionX = '50%';
+    bg.style.backgroundPositionY = (slide.cropOffsetY || 50) + '%';
+    // Show crop overlay
+    document.getElementById('crop-overlay').classList.add('active');
+    // Position dragbar at the cropOffsetY% of preview height
+    const previewH = document.getElementById('preview').offsetHeight;
+    const barY = ((slide.cropOffsetY || 50) / 100) * previewH;
+    document.getElementById('crop-dragbar').style.top = barY + 'px';
   } else {
     bg.style.backgroundImage = 'none';
     bg.style.backgroundColor = currentMode === 'dark-on-light' ? '#F5F3F0' : '#3A3530';
+    document.getElementById('crop-overlay').classList.remove('active');
   }
 
   // Overlay tint
@@ -784,7 +850,12 @@ function updatePreview() {
   const baseClass = currentFormat === 'portrait' ? 'portrait' : currentFormat === 'story' ? 'story' : '';
   preview.className = baseClass + (slide.mode === 'dark-on-light' ? ' mode-dark-on-light' : '');
 
-  // ── Text elements ──
+  // ── Text elements — apply textScale ──
+  const scaleFactor = textScale / 100;
+  document.getElementById('pEyebrow').style.fontSize  = (11 * scaleFactor) + 'px';
+  document.getElementById('pHeadline').style.fontSize = (68 * scaleFactor) + 'px';
+  document.getElementById('pSubtext').style.fontSize  = (15 * scaleFactor) + 'px';
+
   const setEl = (id, text, show) => {
     const el = document.getElementById(id);
     el.textContent = text;
@@ -808,6 +879,96 @@ function updatePreview() {
   } else {
     wmImg.style.display = 'none';
   }
+}
+
+// ═══════════════════════════════════════════════════
+//  CROP DRAG
+// ═══════════════════════════════════════════════════
+(function() {
+  let dragging = false;
+  let dragStartY = 0;
+  let dragStartOffset = 50;
+
+  const overlay = document.getElementById('crop-overlay');
+
+  overlay.addEventListener('mousedown', e => {
+    if (!slides[currentSlideIndex].photo) return;
+    dragging = true;
+    dragStartY = e.clientY;
+    dragStartOffset = slides[currentSlideIndex].cropOffsetY ?? 50;
+    overlay.style.cursor = 'ns-resize';
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const preview = document.getElementById('preview');
+    const previewH = preview.offsetHeight;
+    const deltaY = e.clientY - dragStartY;
+    // Moving mouse DOWN moves view DOWN (shows more of top) → offset decreases
+    // Moving mouse UP moves view UP (shows more of bottom) → offset increases
+    // sensitivity: full preview height maps to full 0–100% range
+    const deltaPct = (deltaY / previewH) * 100;
+    let newOffset = dragStartOffset - deltaPct;
+    newOffset = Math.max(0, Math.min(100, newOffset));
+    slides[currentSlideIndex].cropOffsetY = newOffset;
+    // Update preview position live
+    document.getElementById('preview-bg').style.backgroundPositionY = newOffset + '%';
+    document.getElementById('crop-dragbar').style.top = (newOffset / 100 * previewH) + 'px';
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    overlay.style.cursor = 'ns-resize';
+    saveState();
+  });
+
+  // Touch support
+  overlay.addEventListener('touchstart', e => {
+    if (!slides[currentSlideIndex].photo) return;
+    dragging = true;
+    dragStartY = e.touches[0].clientY;
+    dragStartOffset = slides[currentSlideIndex].cropOffsetY ?? 50;
+    e.preventDefault();
+  }, { passive: false });
+
+  document.addEventListener('touchmove', e => {
+    if (!dragging) return;
+    const preview = document.getElementById('preview');
+    const previewH = preview.offsetHeight;
+    const deltaY = e.touches[0].clientY - dragStartY;
+    const deltaPct = (deltaY / previewH) * 100;
+    let newOffset = dragStartOffset - deltaPct;
+    newOffset = Math.max(0, Math.min(100, newOffset));
+    slides[currentSlideIndex].cropOffsetY = newOffset;
+    document.getElementById('preview-bg').style.backgroundPositionY = newOffset + '%';
+    document.getElementById('crop-dragbar').style.top = (newOffset / 100 * previewH) + 'px';
+  }, { passive: false });
+
+  document.addEventListener('touchend', () => {
+    if (!dragging) return;
+    dragging = false;
+    saveState();
+  });
+})();
+
+// ═══════════════════════════════════════════════════
+//  TEXT SCALE
+// ═══════════════════════════════════════════════════
+function updateTextScale() {
+  textScale = parseInt(document.getElementById('textScale').value);
+  document.getElementById('textScaleVal').textContent = textScale + '%';
+  updatePreview();
+  saveState();
+}
+
+function resetTextScale() {
+  textScale = 100;
+  document.getElementById('textScale').value = 100;
+  document.getElementById('textScaleVal').textContent = '100%';
+  updatePreview();
+  saveState();
 }
 
 // ═══════════════════════════════════════════════════
@@ -874,14 +1035,15 @@ function nextSlide()   { if (currentSlideIndex < slides.length - 1) goToSlide(cu
 function addSlide() {
   const cur = slides[currentSlideIndex];
   slides.push({
-    photo:   null,           // new slide gets no photo — user uploads fresh
-    eyebrow: cur.eyebrow,    // pre-fill all text from current slide
+    photo:   null,
+    eyebrow: cur.eyebrow,
     headline: cur.headline,
     subtext:  cur.subtext,
     caption:  cur.caption,
     layout:   cur.layout,
     overlay:  cur.overlay,
-    mode:     cur.mode
+    mode:     cur.mode,
+    cropOffsetY: 50   // new slides always start centered
   });
   goToSlide(slides.length - 1);
   saveState();
@@ -949,7 +1111,7 @@ async function renderSlideToCanvas(slideIndex) {
   canvas.width = w; canvas.height = h;
   const ctx = canvas.getContext('2d');
 
-  // 1. Photo background
+  // 1. Photo background — with crop offset
   if (slide.photo) {
     await new Promise(resolve => {
       const img = new Image();
@@ -957,7 +1119,13 @@ async function renderSlideToCanvas(slideIndex) {
         const iw = img.naturalWidth, ih = img.naturalHeight;
         const scale = Math.max(w/iw, h/ih);
         const dw = iw*scale, dh = ih*scale;
-        ctx.drawImage(img, (w-dw)/2, (h-dh)/2, dw, dh);
+        // cropOffsetY: 0=top, 50=center, 100=bottom
+        const offsetPct = (slide.cropOffsetY ?? 50) / 100;
+        const excessY = dh - h;           // how many px of overflow we have vertically
+        const excessX = dw - w;
+        const dx = -excessX / 2;          // always center horizontally
+        const dy = -(excessY * offsetPct); // apply vertical crop position
+        ctx.drawImage(img, dx, dy, dw, dh);
         resolve();
       };
       img.src = slide.photo;
@@ -985,11 +1153,12 @@ async function renderSlideToCanvas(slideIndex) {
 
   const pad = w * 0.1;
 
-  // 4. Font sizes (proportional to canvas width)
-  const szEyebrow  = Math.round(w * 0.022);   // ~24px at 1080
-  const szHeadline = Math.round(w * 0.11);    // ~119px at 1080
-  const szSubtext  = Math.round(w * 0.028);   // ~30px at 1080
-  const szCaption  = Math.round(w * 0.018);
+  // 4. Font sizes (proportional to canvas width, scaled by textScale)
+  const ts = textScale / 100;  // text scale multiplier
+  const szEyebrow  = Math.round(w * 0.022 * ts);
+  const szHeadline = Math.round(w * 0.11  * ts);
+  const szSubtext  = Math.round(w * 0.028 * ts);
+  const szCaption  = Math.round(w * 0.018);       // caption & watermark never scale
   const szBrand    = Math.round(w * 0.018);
 
   // 5. Visual spacing model — equal whitespace on both sides of headline
@@ -1159,6 +1328,10 @@ function init() {
   // Restore watermark size
   document.getElementById('wmSize').value = wmSize;
   document.getElementById('wmSizeVal').textContent = wmSize + '%';
+
+  // Restore text scale
+  document.getElementById('textScale').value = textScale;
+  document.getElementById('textScaleVal').textContent = textScale + '%';
 
   // Restore format button
   document.querySelectorAll('.format-btn').forEach(b => {
